@@ -1,0 +1,136 @@
+#!/bin/sh
+# https://github.com/cdavisnz/SAP-Initialisation
+# Version:
+# 1.0 04/11/2017 @cdavis.nz
+#
+# built on: Linux SuSE12.0.x86_64
+# chkconfig: 345 90 10
+# description: SAPinit Controller
+
+### BEGIN INIT INFO
+# Provides: z_sapinit
+# Required-Start: $network $syslog $remote_fs $time
+# X-UnitedLinux-Should-Start:
+# Required-Stop:
+# Default-Start: 3 5
+# Default-Stop: 0 1 2 6
+# Short-Description: Start the SAPinit (Custom)
+# Description: Start the SAPinit (Custom)
+### END INIT INFO
+
+RETVAL=0
+
+# Source function library.
+. /etc/rc.status
+rc_reset
+
+SAPBASE=/opt/sapinit
+AWSREPO_SAPINIT=s3://software-sap/SAPINIT_LINUX
+
+function sapinit {
+
+    # Initialisation 'sapinit'
+
+    if [ -d "/opt" ]; then
+
+        if [ ! -d ${SAPBASE} ]; then
+            mkdir ${SAPBASE}
+            chmod -f 755 ${SAPBASE}
+        fi
+    fi
+}
+
+function upgrading_lock {
+
+    # Create upgrading file
+
+    if [ -x "/usr/bin/aws" ]; then
+
+        if [ -f ${SAPBASE}/.upgrading ]; then
+            rm -f ${SAPBASE}/.upgrading
+        fi
+
+        /usr/bin/aws s3 cp ${AWSREPO_SAPINIT}/.upgrading ${SAPBASE}/ > ${SAPBASE}/upgrading.log 2>&1
+
+    else
+        echo "ERROR! Executable '/usr/bin/aws' doesn't exist"
+        exit 1
+    fi
+}
+
+function upgrading_unlock {
+
+    # Remove upgrading file
+
+    if [ -f ${SAPBASE}/.upgrading ]; then
+        rm -f ${SAPBASE}/.upgrading
+    fi
+}
+
+stop()
+{
+
+    # Stopping
+
+    echo -n $"Stop SAPINIT: "
+
+    if [ ${RETVAL} -eq 0 ]; then
+        rc_status -v
+    else
+        rc_status -v
+    fi
+
+    RETVAL=0
+    return ${RETVAL}
+}
+
+start()
+{
+
+    # Starting
+
+    echo -n $"Start SAPINIT: "
+
+    if [ ${RETVAL} -eq 0 ]; then
+        rc_status -v
+    else
+        rc_status -v
+    fi
+
+    RETVAL=$?
+
+    sapinit
+    upgrading_lock
+
+    if [ -f ${SAPBASE}/.upgrading ]; then
+
+       /usr/bin/aws s3 cp ${AWSREPO_SAPINIT}/z_sapinit_include.sh ${SAPBASE}/ > ${SAPBASE}/z_sapinit_include.log 2>&1
+
+       SRC=$(cd ${SAPBASE} "$0"; pwd)
+       source "${SRC}/z_sapinit_include.sh"
+
+    fi
+
+    upgrading_unlock
+
+    return ${RETVAL}
+}
+
+case $1 in
+    stop)
+        stop
+    ;;
+    start)
+        start
+    ;;
+    restart)
+        stop
+        start
+    ;;
+    *)
+    echo "Usage $0 (start|stop|restart)"
+    exit 1;
+    ;;
+esac
+
+exit ${RETVAL}
